@@ -101,7 +101,17 @@ export function extractZip(zipPath: string): string {
   }
 
   fs.mkdirSync(extractDir, { recursive: true });
-  execSync(`ditto -x -k "${zipPath}" "${extractDir}"`);
+
+  const platform = process.platform;
+  if (platform === "darwin") {
+    execSync(`ditto -x -k "${zipPath}" "${extractDir}"`);
+  } else if (platform === "win32") {
+    execSync(
+      `powershell -NoProfile -Command "Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${extractDir}' -Force"`,
+    );
+  } else {
+    execSync(`unzip -o "${zipPath}" -d "${extractDir}"`);
+  }
 
   const entries = fs.readdirSync(extractDir, { withFileTypes: true });
   const dirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith("__MACOSX"));

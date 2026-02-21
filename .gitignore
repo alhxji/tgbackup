@@ -23,6 +23,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Config (local user data)
+.tgbackup/
+
 # Backups folder contents (not the folder itself)
 backups/*
 !backups/.gitkeep

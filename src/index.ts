@@ -1,39 +1,27 @@
-import { loadConfig } from "./config";
-import { showMenu } from "./utils/prompt";
-import { backupFolder } from "./backup/folder";
-import { backupWhatsAppChat } from "./backup/chat";
-import { colors } from "./utils/colors";
+export { TgBackup } from "./telegram/api";
+export type { TgBackupOptions } from "./telegram/api";
 
-async function main() {
-  console.log(colors.bold(colors.cyan("\n  WhatsApp Backup to Telegram\n")));
+export { backupFolder } from "./backup/folder";
+export { backupWhatsAppChat } from "./backup/chat";
+export { backupFile } from "./backup/file";
 
-  const config = loadConfig();
+export { parseWhatsAppChat, groupMessagesByMonth, generateDailyChatText } from "./whatsapp/parser";
+export { groupMediaByDate, findChatFile } from "./whatsapp/media";
 
-  console.log(colors.green(`  ✓ Bot token loaded`));
-  console.log(colors.green(`  ✓ Channel: ${config.channelId}\n`));
+export { getMediaType, extractZip, cleanupExtracted, getFileSize, formatFileSize, partitionBySize } from "./utils/files";
+export type { MediaType } from "./utils/files";
 
-  while (true) {
-    const choice = await showMenu([
-      "Backup a whole folder",
-      "Backup a WhatsApp chat",
-      "Exit",
-    ]);
+export { formatMonthHeader, formatDayHeader, formatDateForFilename, dateToKey, monthKey, getMonthName } from "./utils/dates";
 
-    switch (choice) {
-      case 0:
-        await backupFolder(config);
-        break;
-      case 1:
-        await backupWhatsAppChat(config);
-        break;
-      case 2:
-        console.log(colors.gray("\n  Goodbye.\n"));
-        process.exit(0);
-    }
-  }
-}
-
-main().catch((error) => {
-  console.error(colors.red(`\n  Error: ${error.message}\n`));
-  process.exit(1);
-});
+export type {
+  BotConfig,
+  ChannelConfig,
+  AppStore,
+  ChatMessage,
+  DayGroup,
+  MonthGroup,
+  BackupOptions,
+  ProgressInfo,
+  BackupResult,
+  SessionData,
+} from "./types";

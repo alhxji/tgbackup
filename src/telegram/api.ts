@@ -1,56 +1,45 @@
 import { Api, InputFile } from "grammy";
 import * as fs from "fs";
 import * as path from "path";
-import { colors } from "../utils/colors";
 import { MAX_FILE_SIZE, getMediaType } from "../utils/files";
 
 const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY = 5000;
 const UPLOAD_DELAY = 3000;
 
+export interface TgBackupOptions {
+  botToken: string;
+  channelId: string;
+  onRetry?: (attempt: number, maxAttempts: number, waitSec: number) => void;
+  onSkip?: (fileName: string, reason: string) => void;
+  onFail?: (fileName: string, error: string) => void;
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export class TelegramApi {
+export class TgBackup {
   private api: Api;
   private channelId: number | string;
   private lastSendTime: number = 0;
+  private opts: TgBackupOptions;
 
-  constructor(botToken: string, channelId: string) {
-    this.api = new Api(botToken);
-    this.channelId = /^-?\d+$/.test(channelId) ? parseInt(channelId) : channelId;
+  constructor(options: TgBackupOptions) {
+    this.opts = options;
+    this.api = new Api(options.botToken);
+    this.channelId = /^-?\d+$/.test(options.channelId)
+      ? parseInt(options.channelId)
+      : options.channelId;
   }
 
-  async validate(): Promise<boolean> {
+  async validate(): Promise<{ valid: boolean; botUsername?: string; error?: string }> {
     try {
       const me = await this.api.getMe();
-      console.log(colors.green(`  ✓ Connected as @${me.username}`));
-    } catch {
-      console.log(colors.red("  ✗ Invalid bot token or connection failed."));
-      return false;
-    }
-
-    try {
       await this.api.getChat(this.channelId);
-      console.log(colors.green(`  ✓ Channel access verified`));
-      return true;
+      return { valid: true, botUsername: me.username };
     } catch (error: any) {
-      const msg = error.message || "";
-      if (msg.includes("chat not found")) {
-        console.log(colors.red("\n  ✗ Channel not found."));
-        console.log(colors.yellow("  Make sure:"));
-        console.log(colors.yellow("    1. The CHANNEL_ID in .env is correct"));
-        console.log(colors.yellow("    2. The bot has been added to the channel as an admin"));
-        console.log(colors.yellow("    3. The bot has permission to post messages\n"));
-        console.log(colors.gray("  See docs/SETUP.md for detailed instructions."));
-      } else if (msg.includes("bot was kicked") || msg.includes("Forbidden")) {
-        console.log(colors.red("\n  ✗ Bot was removed from the channel or lacks permissions."));
-        console.log(colors.yellow("  Re-add the bot as an admin with full privileges.\n"));
-      } else {
-        console.log(colors.red(`\n  ✗ Cannot access channel: ${msg}`));
-      }
-      return false;
+      return { valid: false, error: error.message || "Unknown error" };
     }
   }
 
@@ -60,6 +49,24 @@ export class TelegramApi {
       await delay(UPLOAD_DELAY - elapsed);
     }
     this.lastSendTime = Date.now();
+  }
+
+  private logRetry(attempt: number, waitTime: number): void {
+    if (this.opts.onRetry) {
+      this.opts.onRetry(attempt, RETRY_ATTEMPTS, waitTime / 1000);
+    }
+  }
+
+  private logSkip(fileName: string, reason: string): void {
+    if (this.opts.onSkip) {
+      this.opts.onSkip(fileName, reason);
+    }
+  }
+
+  private logFail(fileName: string, error: string): void {
+    if (this.opts.onFail) {
+      this.opts.onFail(fileName, error);
+    }
   }
 
   getMessageLink(messageId: number): string {
@@ -80,10 +87,10 @@ export class TelegramApi {
       } catch (error: any) {
         if (attempt < RETRY_ATTEMPTS) {
           const waitTime = RETRY_DELAY * attempt;
-          console.log(colors.yellow(`  ⟳ Retry ${attempt}/${RETRY_ATTEMPTS} in ${waitTime / 1000}s...`));
+          this.logRetry(attempt, waitTime);
           await delay(waitTime);
         } else {
-          console.log(colors.red(`  ✗ Failed to send message: ${error.message}`));
+          this.logFail("message", error.message);
           return null;
         }
       }
@@ -108,7 +115,7 @@ export class TelegramApi {
 
     const fileSize = fs.statSync(filePath).size;
     if (fileSize > MAX_FILE_SIZE) {
-      console.log(colors.yellow(`  ⚠ Skipping ${path.basename(filePath)} (exceeds 50MB limit)`));
+      this.logSkip(path.basename(filePath), "Exceeds 50MB limit");
       return null;
     }
 
@@ -121,10 +128,10 @@ export class TelegramApi {
       } catch (error: any) {
         if (attempt < RETRY_ATTEMPTS) {
           const waitTime = RETRY_DELAY * attempt;
-          console.log(colors.yellow(`  ⟳ Retry ${attempt}/${RETRY_ATTEMPTS} in ${waitTime / 1000}s...`));
+          this.logRetry(attempt, waitTime);
           await delay(waitTime);
         } else {
-          console.log(colors.red(`  ✗ Failed: ${path.basename(filePath)} — ${error.message}`));
+          this.logFail(path.basename(filePath), error.message);
           return null;
         }
       }
@@ -137,7 +144,7 @@ export class TelegramApi {
 
     const fileSize = fs.statSync(filePath).size;
     if (fileSize > MAX_FILE_SIZE) {
-      console.log(colors.yellow(`  ⚠ Skipping ${path.basename(filePath)} (exceeds 50MB limit)`));
+      this.logSkip(path.basename(filePath), "Exceeds 50MB limit");
       return null;
     }
 
@@ -150,10 +157,10 @@ export class TelegramApi {
       } catch (error: any) {
         if (attempt < RETRY_ATTEMPTS) {
           const waitTime = RETRY_DELAY * attempt;
-          console.log(colors.yellow(`  ⟳ Retry ${attempt}/${RETRY_ATTEMPTS} in ${waitTime / 1000}s...`));
+          this.logRetry(attempt, waitTime);
           await delay(waitTime);
         } else {
-          console.log(colors.red(`  ✗ Failed: ${path.basename(filePath)} — ${error.message}`));
+          this.logFail(path.basename(filePath), error.message);
           return null;
         }
       }
@@ -166,7 +173,7 @@ export class TelegramApi {
 
     const fileSize = fs.statSync(filePath).size;
     if (fileSize > MAX_FILE_SIZE) {
-      console.log(colors.yellow(`  ⚠ Skipping ${path.basename(filePath)} (exceeds 50MB limit)`));
+      this.logSkip(path.basename(filePath), "Exceeds 50MB limit");
       return null;
     }
 
@@ -179,10 +186,10 @@ export class TelegramApi {
       } catch (error: any) {
         if (attempt < RETRY_ATTEMPTS) {
           const waitTime = RETRY_DELAY * attempt;
-          console.log(colors.yellow(`  ⟳ Retry ${attempt}/${RETRY_ATTEMPTS} in ${waitTime / 1000}s...`));
+          this.logRetry(attempt, waitTime);
           await delay(waitTime);
         } else {
-          console.log(colors.red(`  ✗ Failed: ${path.basename(filePath)} — ${error.message}`));
+          this.logFail(path.basename(filePath), error.message);
           return null;
         }
       }
@@ -202,10 +209,10 @@ export class TelegramApi {
       } catch (error: any) {
         if (attempt < RETRY_ATTEMPTS) {
           const waitTime = RETRY_DELAY * attempt;
-          console.log(colors.yellow(`  ⟳ Retry ${attempt}/${RETRY_ATTEMPTS} in ${waitTime / 1000}s...`));
+          this.logRetry(attempt, waitTime);
           await delay(waitTime);
         } else {
-          console.log(colors.red(`  ✗ Failed: ${filename} — ${error.message}`));
+          this.logFail(filename, error.message);
           return null;
         }
       }
