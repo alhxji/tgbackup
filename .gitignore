@@ -22,3 +22,7 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+# Backups folder contents (not the folder itself)
+backups/*
+!backups/.gitkeep
