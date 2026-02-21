@@ -236,3 +236,9 @@ Detailed docs are in the [docs/](docs/) folder:
 ---
 
 > Looking for a simpler standalone script version? Check out the [`script`](https://github.com/alhxji/tgbackup/tree/script) branch.
+
+---
+
+## Disclaimer
+
+This project is not affiliated with, endorsed by, or associated with Telegram or WhatsApp. All product names, trademarks, and registered trademarks are the property of their respective owners. This tool interacts with the Telegram Bot API under its [Terms of Service](https://core.telegram.org/api/terms). Use responsibly and at your own risk. The authors are not liable for any misuse, data loss, or account restrictions that may result from using this software.
